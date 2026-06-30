@@ -6,6 +6,10 @@ terraform {
       source = "hashicorp/aws"
       version = "~> 5.0"
     }
+    http = {
+      source = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 
   backend "s3" {
@@ -39,6 +43,15 @@ module "network" {
   availability_zones = var.availability_zones
 }
 
+# dynamically fetch the current public IP, so admin_cidr never goes stale when home IP chnges
+data "http" "my_ip" {
+  url = "https://checkip.amazonaws.com"
+}
+
+locals {
+  resolved_admin_cidr = var.admin_cidr != "" ? var.admin_cidr : "${trimspace(data.http.my_ip.response_body)}/32"
+}
+
 module "security_group" {
   source = "./modules/security_group"
 
@@ -46,7 +59,7 @@ module "security_group" {
   environment = var.environment
   vpc_id = module.network.vpc_id
   vpc_cidr = var.vpc_cidr
-  admin_cidr = var.admin_cidr
+  admin_cidr = local.resolved_admin_cidr
 }
 
 module "compute" {
@@ -54,9 +67,9 @@ module "compute" {
 
   project_name = var.project_name
   environment = var.environment
-  ami_id = var.amd_id
+  ami_id = var.ami_id
   key_pair_name = var.key_pair_name
-  control_plane_instance_type = var.control_panel_instance_type
+  control_plane_instance_type = var.control_plane_instance_type
   worker_instance_type = var.worker_instance_type
   worker_count = var.worker_count
   
