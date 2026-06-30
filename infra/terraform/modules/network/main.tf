@@ -7,8 +7,12 @@ module "vpc" {
 
   azs = var.availability_zones
   public_subnets = var.public_subnet_cidrs
+
   enable_nat_gateway = false
   single_nat_gateway = false
+
+  # auto assign public IPs on public subnets so every node is reachable
+  map_public_ip_on_launch = true
 
   enable_dns_hostnames = true
   enable_dns_support = true
