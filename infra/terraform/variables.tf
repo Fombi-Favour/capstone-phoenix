@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWs region to deploy into"
+  description = "AWS region to deploy into"
   type = string
   default = "eu-west-2"
 }
@@ -11,7 +11,7 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Environmental label (dev / sstaging / prod)"
+  description = "Environmental label (dev / staging / prod)"
   type = string
   default = "prod"
 }
@@ -35,11 +35,12 @@ variable "availability_zones" {
 }
 
 variable "admin_cidr" {
-  default = "The IP in CIDR notation that is allowed SSH access"
+  description = "The IP in CIDR notation that is allowed SSH access"
   type = string
+  default = ""
 }
 
-variable "control_panel_instance_type" {
+variable "control_plane_instance_type" {
   description = "EC2 instance type for k3s control-panel node"
   type = string
   default = "t3.small"
@@ -57,8 +58,8 @@ variable "worker_count" {
   default = 2
 }
 
-variable "amd_id" {
-  description = "EC2 AM ID"
+variable "ami_id" {
+  description = "EC2 AMI ID"
   type = string
   default = "ami-07f936ee1f9a0de0e" # Ubuntu 24.04 LTS
 }
