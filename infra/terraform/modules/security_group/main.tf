@@ -42,6 +42,21 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
   cidr_ipv4 = var.admin_cidr
 }
 
+# Ingress: EC2 Instance connect
+data "aws_ec2_managed_prefix_list" "ec2_instance_connect" {
+  name = "com.amazonaws.${data.aws_region.current.name}.ec2-instance-connect"
+}
+resource "aws_vpc_security_group_ingress_rule" "ec2_instance_connect" {
+  security_group_id = aws_security_group.nodes.id
+  description = "Instance connect"
+  from_port = 22
+  to_port = 22
+  ip_protocol = "tcp"
+  prefix_list_id = data.aws_ec2_managed_prefix_list.ec2_instance_connect.id
+}
+
+data "aws_region" "current" {}
+
 # Ingress: Kubernetes API (VPC-internal only)
 resource "aws_vpc_security_group_ingress_rule" "k8s_api" {
   security_group_id = aws_security_group.nodes.id
