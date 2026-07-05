@@ -28,6 +28,11 @@ output "worker_private_ips" {
   value = module.compute.worker_private_ips
 }
 
+output "admin_cidr" {
+  description = "The resolved admin CIDR used for SSH — auto-detected from checkip.amazonaws.com if var.admin_cidr was left empty. Useful for Ansible or any other tooling that needs the operator's current public IP."
+  value = local.resolved_admin_cidr
+}
+
 output "ansible_inventory_hint" {
   description = <<-EOT
     Copy-pasteable hint for building your Ansible inventory.
@@ -43,5 +48,10 @@ ${join("\n", formatlist("%s ansible_user=ubuntu", module.compute.worker_public_i
 [k3s_cluster:children]
 control_plane
 workers
+
+[k3s_cluster:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/taskapp-capstone.pem
+ansible_python_interpreter=/usr/bin/python3
   EOT
 }
