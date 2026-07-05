@@ -1,0 +1,22 @@
+- name: Harden all cluster nodes
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+  roles:
+    - hardening
+
+- name: Install k3s server on control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: true
+  vars:
+    control_plane_public_ip: "{{ hostvars[groups['control_plane'][0]]['inventory_hostname'] }}"
+  roles:
+    - k3s-server
+
+- name: Join worker nodes to the cluster
+  hosts: workers
+  become: true
+  gather_facts: true
+  roles:
+    - k3s-agent
