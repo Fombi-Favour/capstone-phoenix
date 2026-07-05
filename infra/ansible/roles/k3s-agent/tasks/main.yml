@@ -1,0 +1,53 @@
+# resolve server details from control-plane host
+- name: Inherit k3s_token from control-plane facts
+  ansible.builtin.set_fact:
+    k3s_token: "{{ hostvars[groups['control_plane'][0]]['k3s_token'] }}"
+  when: k3s_token == ""
+
+- name: Inherit control-plane private IP from hostvars
+  ansible.builtin.set_fact:
+    k3s_server_private_ip: "{{ hostvars[groups['control_plane'][0]]['ansible_default_ipv4']['address'] }}"
+  when: k3s_server_private_ip == ""
+
+# install k3s agent
+- name: Check if k3s agent is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Check installed k3s version on agent
+  ansible.builtin.command: k3s --version
+  register: k3s_installed_version
+  changed_when: false
+  failed_when: false
+  when: k3s_binary.stat.exists
+
+- name: Install k3s agent and join cluster
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      K3S_URL="https://{{ k3s_server_private_ip }}:6443" \
+      K3S_TOKEN="{{ k3s_token }}" \
+      sh -s - agent
+  args:
+    executable: /bin/bash
+  when: >
+    not k3s_binary.stat.exists or
+    k3s_version not in (k3s_installed_version.stdout | default(''))
+  notify: Restart k3s agent
+
+- name: Ensure k3s-agent service is enabled and running
+  ansible.builtin.systemd:
+    name: k3s-agent
+    enabled: true
+    state: started
+
+- name: Wait for agent node to appear as Ready on control-plane
+  ansible.builtin.command: >
+    k3s kubectl get node {{ ansible_hostname }} --no-headers
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
+  register: node_status
+  retries: 20
+  delay: 10
+  until: "'Ready' in node_status.stdout"
+  changed_when: false

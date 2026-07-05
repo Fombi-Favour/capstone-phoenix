@@ -1,0 +1,110 @@
+- name: Update apt cache and upgrade packages
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: safe
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ufw
+      - curl
+      - wget
+      - unzip
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - python3
+      - python3-pip
+    state: present
+
+- name: Install fail2ban (optional)
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+  when: install_fail2ban | bool
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: install_fail2ban | bool
+
+# SSH hardnening
+- name: Harden SSH — disable password auth and root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    validate: sshd -t -f %s
+  loop:
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?PermitRootLogin',        line: 'PermitRootLogin no' }
+    - { regexp: '^#?PubkeyAuthentication',   line: 'PubkeyAuthentication yes' }
+    - { regexp: '^#?X11Forwarding',          line: 'X11Forwarding no' }
+  notify: Restart sshd
+
+# UFW firewall
+- name: Set UFW default policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
+
+- name: Allow SSH through UFW
+  community.general.ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+    comment: SSH admin access
+
+- name: Allow required TCP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: tcp
+  loop: "{{ ufw_allowed_tcp_ports }}"
+
+- name: Allow required UDP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: udp
+  loop: "{{ ufw_allowed_udp_ports }}"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+# kernel settings for Kubernetes
+- name: Load required kernel modules
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Persist kernel modules across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      br_netfilter
+      overlay
+    mode: '0644'
+
+- name: Apply sysctl settings required by Kubernetes networking
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }

@@ -1,0 +1,10 @@
+deploy_user: ubuntu
+ufw_allowed_tcp_ports:
+  - 80
+  - 443
+  - 6443   # k3s API — VPC-internal only (SG enforces source; UFW opens the port)
+  - 10250  # kubelet
+ufw_allowed_udp_ports:
+  - 8472   # Flannel VXLAN
+
+install_fail2ban: false

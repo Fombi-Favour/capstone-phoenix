@@ -1,0 +1,119 @@
+# install k3s server
+- name: Check if k3s server is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Check installed k3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_installed_version
+  changed_when: false
+  failed_when: false
+  when: k3s_binary.stat.exists
+
+- name: Install k3s server
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" \
+      sh -s - server {{ k3s_server_extra_args }}
+  args:
+    executable: /bin/bash
+  when: >
+    not k3s_binary.stat.exists or
+    k3s_version not in (k3s_installed_version.stdout | default(''))
+  notify: Restart k3s server
+
+- name: Apply pending k3s restart now
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure k3s service is enabled and running
+  ansible.builtin.systemd:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Wait for k3s to be ready (node-token file appears)
+  ansible.builtin.wait_for:
+    path: "{{ k3s_token_path }}"
+    state: present
+    timeout: 120
+
+- name: Wait for the API server to become available
+  ansible.builtin.command: k3s kubectl get nodes
+  register: nodes_ready
+  retries: 20
+  delay: 10
+  until: nodes_ready.rc == 0
+  changed_when: false
+
+# capture node token for workers
+- name: Read node token
+  ansible.builtin.slurp:
+    src: "{{ k3s_token_path }}"
+  register: k3s_token_raw
+
+- name: Set k3s_token fact (shared to all hosts in play)
+  ansible.builtin.set_fact:
+    k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+
+# fetch kubeconfig to local machine
+# 1. Get remote checksum
+- name: Stat remote kubeconfig to get its checksum
+  ansible.builtin.stat:
+    path: /etc/rancher/k3s/k3s.yaml
+    checksum_algorithm: sha256
+  register: remote_kubeconfig_stat
+
+# 2. Get local checksum
+- name: Stat local kubeconfig to get its checksum
+  ansible.builtin.stat:
+    path: "{{ kubeconfig_local_path | expanduser }}"
+    checksum_algorithm: sha256
+  register: local_kubeconfig_stat
+  delegate_to: localhost
+  become: false
+
+- name: Fetch raw kubeconfig from control-plane
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ kubeconfig_local_path | expanduser }}"
+    flat: true
+  become: true
+  when: >
+    not local_kubeconfig_stat.stat.exists or
+    remote_kubeconfig_stat.stat.checksum != local_kubeconfig_stat.stat.checksum
+
+- name: Rewrite kubeconfig server address to public IP
+  ansible.builtin.replace:
+    path: "{{ kubeconfig_local_path | expanduser }}"
+    regexp: 'https://(127\.0\.0\.1|localhost):6443'
+    replace: "https://{{ control_plane_public_ip }}:6443"
+  delegate_to: localhost
+  become: false
+
+- name: Ensure local ~/.kube directory exists
+  ansible.builtin.file:
+    path: "{{ kubeconfig_local_path | dirname }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Verify kubeconfig has the correct server address
+  ansible.builtin.command: grep 'server:' {{ kubeconfig_local_path | expanduser }}
+  delegate_to: localhost
+  become: false
+  register: kubeconfig_server_line
+  changed_when: false
+  failed_when: >
+    '127.0.0.1' in kubeconfig_server_line.stdout or
+    'localhost' in kubeconfig_server_line.stdout
+
+- name: Remind how to use the fetched kubeconfig
+  ansible.builtin.debug:
+    msg: >-
+      Kubeconfig ready at {{ kubeconfig_local_path }}.
+      This is not the default ~/.kube/config path, so run:
+      export KUBECONFIG={{ kubeconfig_local_path }}
+      (or add that line to your shell profile) before using kubectl.
+  delegate_to: localhost
+  become: false
