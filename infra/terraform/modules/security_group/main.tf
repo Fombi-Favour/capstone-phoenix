@@ -67,6 +67,16 @@ resource "aws_vpc_security_group_ingress_rule" "k8s_api" {
   cidr_ipv4 = var.vpc_cidr
 }
 
+# Ingress: Kubernetes API (admin only)
+resource "aws_vpc_security_group_ingress_rule" "k8s_api_admin" {
+  security_group_id = aws_security_group.nodes.id
+  description = "k3s API server - admin only"
+  from_port = 6443
+  to_port = 6443
+  ip_protocol = "tcp"
+  cidr_ipv4 = var.admin_cidr
+}
+
 # Ingress: k3s flannel VXLAN (UDP 8472, node-to-node)
 resource "aws_vpc_security_group_ingress_rule" "flannel_vxlan" {
   security_group_id = aws_security_group.nodes.id
