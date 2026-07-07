@@ -11,6 +11,34 @@
   failed_when: false
   when: k3s_binary.stat.exists
 
+- name: Ensure /etc/rancher/k3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: '0755'
+
+- name: Configure k3s server TLS SAN for public IP
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    mode: '0644'
+    content: |
+      tls-san:
+        - "{{ control_plane_public_ip }}"
+  notify: Restart k3s server
+
+- name: Check current k3s serving certificate SANs
+  ansible.builtin.shell: |
+    openssl x509 -in /var/lib/rancher/k3s/server/tls/serving-kube-apiserver.crt -noout -text 2>/dev/null || true
+  register: current_serving_cert
+  changed_when: false
+
+- name: Force k3s to regenerate its serving certificate if public IP SAN is missing
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s/server/tls/dynamic-cert.json
+    state: absent
+  when: control_plane_public_ip not in current_serving_cert.stdout
+  notify: Restart k3s server
+
 - name: Install k3s server
   ansible.builtin.shell: |
     curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" \
@@ -56,45 +84,27 @@
     k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
 
 # fetch kubeconfig to local machine
-# 1. Get remote checksum
-- name: Stat remote kubeconfig to get its checksum
-  ansible.builtin.stat:
-    path: /etc/rancher/k3s/k3s.yaml
-    checksum_algorithm: sha256
-  register: remote_kubeconfig_stat
-
-# 2. Get local checksum
-- name: Stat local kubeconfig to get its checksum
-  ansible.builtin.stat:
-    path: "{{ kubeconfig_local_path | expanduser }}"
-    checksum_algorithm: sha256
-  register: local_kubeconfig_stat
-  delegate_to: localhost
-  become: false
-
-- name: Fetch raw kubeconfig from control-plane
-  ansible.builtin.fetch:
+- name: Read raw kubeconfig from control-plane
+  ansible.builtin.slurp:
     src: /etc/rancher/k3s/k3s.yaml
-    dest: "{{ kubeconfig_local_path | expanduser }}"
-    flat: true
+  register: raw_kubeconfig
   become: true
-  when: >
-    not local_kubeconfig_stat.stat.exists or
-    remote_kubeconfig_stat.stat.checksum != local_kubeconfig_stat.stat.checksum
-
-- name: Rewrite kubeconfig server address to public IP
-  ansible.builtin.replace:
-    path: "{{ kubeconfig_local_path | expanduser }}"
-    regexp: 'https://(127\.0\.0\.1|localhost):6443'
-    replace: "https://{{ control_plane_public_ip }}:6443"
-  delegate_to: localhost
-  become: false
 
 - name: Ensure local ~/.kube directory exists
   ansible.builtin.file:
     path: "{{ kubeconfig_local_path | dirname }}"
     state: directory
     mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Write kubeconfig locally with public IP substituted
+  ansible.builtin.copy:
+    dest: "{{ kubeconfig_local_path | expanduser }}"
+    mode: '0600'
+    content: >-
+      {{ (raw_kubeconfig.content | b64decode)
+         | regex_replace('https://(127\.0\.0\.1|localhost):6443', 'https://' + control_plane_public_ip + ':6443') }}
   delegate_to: localhost
   become: false
 
@@ -108,12 +118,12 @@
     '127.0.0.1' in kubeconfig_server_line.stdout or
     'localhost' in kubeconfig_server_line.stdout
 
-- name: Remind how to use the fetched kubeconfig
+- name: Remind where the kubeconfig was written
   ansible.builtin.debug:
     msg: >-
-      Kubeconfig ready at {{ kubeconfig_local_path }}.
-      This is not the default ~/.kube/config path, so run:
-      export KUBECONFIG={{ kubeconfig_local_path }}
-      (or add that line to your shell profile) before using kubectl.
+      Kubeconfig written to {{ kubeconfig_local_path }} (kubectl's default
+      location), so no KUBECONFIG export needed. Note: this OVERWRITES that
+      file — if you use kubectl with other clusters, merge contexts instead
+      of using this default path.
   delegate_to: localhost
   become: false

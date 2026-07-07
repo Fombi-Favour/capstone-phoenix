@@ -2,4 +2,4 @@ k3s_version: v1.31.0+k3s1
 
 k3s_server_extra_args: "--disable traefik --disable servicelb"
 k3s_token_path: /var/lib/rancher/k3s/server/node-token
-kubeconfig_local_path: "~/.kube/taskapp-capstone.yaml"
+kubeconfig_local_path: "~/.kube/config"
