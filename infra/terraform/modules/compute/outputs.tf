@@ -1,6 +1,6 @@
 output "control_plane_public_ip" {
-  description = "Public IP of the control-plane node."
-  value = module.control_plane.public_ip
+  description = "Static Elastic IP of the control-plane node."
+  value       = aws_eip.control_plane.public_ip
 }
 
 output "control_plane_private_ip" {

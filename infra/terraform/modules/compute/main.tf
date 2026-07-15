@@ -12,6 +12,16 @@ locals {
   }
 }
 
+# Allocate a static Elastic IP for the control plane
+resource "aws_eip" "control_plane" {
+  domain   = "vpc"
+  instance = module.control_plane.id
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-control-plane-eip"
+  }
+}
+
 # control-plane node
 module "control_plane" {
   source = "terraform-aws-modules/ec2-instance/aws"
