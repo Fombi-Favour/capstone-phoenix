@@ -45,6 +45,8 @@ spec:
 
       terminationGracePeriodSeconds: 30
 
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: frontend
           image: ghcr.io/ts-a-devops/taskapp-frontend:26da2b0
