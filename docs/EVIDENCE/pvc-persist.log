@@ -1,0 +1,28 @@
+create a task using the token
+{"created_at":"2026-07-16T23:43:10.420274","description":"Written before pod kill to prove PVC persistence","id":1,"priority":"medium","status":"todo","title":"PVC survival test","updated_at":"2026-07-16T23:43:10.420278"}
+
+kill postgres pod to test PVC persistence
+pod "postgres-0" deleted from taskapp namespace
+
+watch it restart
+NAME                        READY   STATUS    RESTARTS   AGE
+backend-64689d685f-4j2rq    1/1     Running   0          7h47m
+backend-64689d685f-bc79c    1/1     Running   0          7h57m
+backend-64689d685f-gvrqr    1/1     Running   0          7h57m
+backend-64689d685f-h6pwn    1/1     Running   0          7h47m
+backend-64689d685f-vgrcn    1/1     Running   0          7h47m
+backend-64689d685f-wbvcp    1/1     Running   0          7h47m
+frontend-8676f4f8c4-6pm5x   1/1     Running   0          7h47m
+frontend-8676f4f8c4-jmpfq   1/1     Running   0          7h47m
+postgres-0                  1/1     Running   0          23s
+
+verify the data is still there
+{
+  "created_at": "2026-07-16T23:43:10.420274",
+  "description": "Written before pod kill to prove PVC persistence",
+  "id": 1,
+  "priority": "medium",
+  "status": "todo",
+  "title": "PVC survival test",
+  "updated_at": "2026-07-16T23:43:10.420278"
+}
