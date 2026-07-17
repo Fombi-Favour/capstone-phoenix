@@ -15,4 +15,4 @@ data:
   FLASK_DEBUG: "false"
 
   # Frontend config
-  VITE_API_URL: "https://taskapp.18.169.122.172.nip.io/api" # change control-plane public IP address
+  VITE_API_URL: "https://taskapp.18.169.122.172.nip.io/api"
