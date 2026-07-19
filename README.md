@@ -1,5 +1,7 @@
 # Capstone — Phoenix: TaskApp on Real Kubernetes
 
+URL: https://taskapp.18.169.122.172.nip.io ✅
+
 > **Mission.** Take the **TaskApp** you containerized and shipped to one server with
 > Portainer, and run it on a **multi-node Kubernetes cluster you provision yourself** —
 > highly available, autoscaling, zero-downtime, behind HTTPS on your own domain, with
