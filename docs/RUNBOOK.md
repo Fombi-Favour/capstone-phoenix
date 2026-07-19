@@ -81,7 +81,7 @@ ansible-galaxy collection install -r requirements.yml
 ansible k3s_cluster -m ping   # all nodes must return pong
 
 # Run full playbook
-ansible-playbook site.yml
+ansible-playbook install-k3s.yml
 
 # Verify cluster
 kubectl get nodes -o wide
