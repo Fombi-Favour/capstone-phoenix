@@ -2,6 +2,8 @@
 
 URL: https://taskapp.18.169.122.172.nip.io ✅
 
+https://github.com/user-attachments/assets/d945d543-64da-4e72-9072-4fb20b7efab3
+
 > **Mission.** Take the **TaskApp** you containerized and shipped to one server with
 > Portainer, and run it on a **multi-node Kubernetes cluster you provision yourself** —
 > highly available, autoscaling, zero-downtime, behind HTTPS on your own domain, with
